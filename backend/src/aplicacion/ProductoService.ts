@@ -1,5 +1,5 @@
-import { Producto, IProducto } from '../dominio/Producto';
-import { Carrito, IItemCarrito } from '../dominio/Carrito';
+import { Producto, IProducto, IItemCarrito } from '../dominio/Producto';
+import { Carrito } from '../dominio/Carrito';
 import { ProductoRepository } from '../infraestructura/ProductoRepository';
 
 export class ProductoService {
@@ -28,9 +28,7 @@ export class ProductoService {
   }
 
   public async listarCategorias(): Promise<string[]> {
-    const productos = await this.repository.obtenerTodos();
-    const categorias = new Set(productos.map(p => p.categoria));
-    return Array.from(categorias).sort();
+    return this.repository.obtenerCategorias();
   }
 }
 
