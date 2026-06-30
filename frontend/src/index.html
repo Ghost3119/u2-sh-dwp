@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal de Catalogo - DWP Unidad 2</title>
+  <link rel="stylesheet" href="./estilos/estilos.css" />
+</head>
+<body>
+  <div id="cursor-trail"></div>
+
+  <header class="header">
+    <h1 class="logo" data-anim="fade-in">TechStore</h1>
+    <nav class="nav">
+      <input
+        type="text"
+        id="buscador"
+        class="buscador"
+        placeholder="Buscar productos, categorias..."
+        autocomplete="off"
+      />
+      <div class="filtros" id="filtros-categorias"></div>
+    </nav>
+    <div class="carrito-icono" id="carrito-icono" title="Ver carrito">
+      <span class="carrito-emoji">&#128722;</span>
+      <span class="carrito-contador" id="carrito-contador">0</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="hero">
+      <h2 data-anim="slide-up">Bienvenido a TechStore</h2>
+      <p data-anim="slide-up" style="animation-delay:.2s">
+        Descubre los mejores productos de tecnologia
+      </p>
+    </section>
+
+    <section class="catalogo">
+      <h2 class="seccion-titulo">Nuestros Productos</h2>
+      <div id="grid-productos" class="grid-productos">
+        <p class="cargando">Cargando productos...</p>
+      </div>
+    </section>
+
+    <aside id="panel-detalle" class="panel-detalle oculto">
+      <button class="btn-cerrar" id="btn-cerrar-detalle">&times;</button>
+      <div id="detalle-contenido"></div>
+    </aside>
+
+    <aside id="panel-carrito" class="panel-carrito oculto">
+      <button class="btn-cerrar" id="btn-cerrar-carrito">&times;</button>
+      <h2>Tu Carrito</h2>
+      <div id="carrito-contenido"></div>
+    </aside>
+
+    <div id="zona-drag" class="zona-drag">
+      <p>Arrastra aqui tus productos favoritos</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>&copy; 2026 TechStore - DWP Unidad 2 - Camacho Ibarra Jorge Jair</p>
+  </footer>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
