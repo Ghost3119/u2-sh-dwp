@@ -4,7 +4,10 @@ Proyecto monorepo **TypeScript** con **Express** (backend) y **HTML + TS + CSS**
 
 - Materia: **Desarrollo Web Profesional**
 - Unidad: **2 - Saber Hacer**
-- Alumno: **Camacho Ibarra Jorge Jair**
+- Alumnos: 
+    - **Camacho Ibarra Jorge Jair**
+    - **Valdez Lara Yahir Alejandro**
+    - **Santana Chavez Saul Fabian**
 
 ## Stack tecnologico
 
