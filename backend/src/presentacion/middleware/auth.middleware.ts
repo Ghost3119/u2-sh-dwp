@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { SesionRepository } from '../../infraestructura/SesionRepository';
+import { RolUsuario } from '../../dominio/Usuario';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'techstore-dev-secret-change-in-prod';
 
@@ -9,6 +10,7 @@ export interface IUsuarioSesion {
   username: string;
   email: string;
   nombreCompleto: string;
+  rol: RolUsuario;
 }
 
 declare global {
@@ -36,9 +38,9 @@ export function requerirAuth(sesionRepo: SesionRepository) {
       return;
     }
 
-    let payload: { usuarioId: number; username: string };
+    let payload: { usuarioId: number; username: string; rol?: string };
     try {
-      payload = jwt.verify(token, JWT_SECRET) as { usuarioId: number; username: string };
+      payload = jwt.verify(token, JWT_SECRET) as { usuarioId: number; username: string; rol?: string };
     } catch (err: any) {
       const msg =
         err.name === 'TokenExpiredError' ? 'Token expirado' : 'Token invalido';
@@ -63,11 +65,14 @@ export function requerirAuth(sesionRepo: SesionRepository) {
       return;
     }
 
+    const rol: RolUsuario = sesion.rol === 'admin' ? 'admin' : 'cliente';
+
     req.usuario = {
       id: sesion.usuarioId,
       username: sesion.username,
       email: sesion.email,
-      nombreCompleto: sesion.nombreCompleto
+      nombreCompleto: sesion.nombreCompleto,
+      rol
     };
     req.token = token;
     next();

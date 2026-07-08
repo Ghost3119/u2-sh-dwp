@@ -6,7 +6,18 @@ import { db } from './infraestructura/database';
 import routes from './presentacion/routes';
 import { crearAuthRouter } from './presentacion/auth.routes';
 import { crearPedidosRouter } from './presentacion/pedidos.routes';
-import { authService, pedidoService, sesionRepo } from './aplicacion/dependencias';
+import { crearPasswordRouter } from './presentacion/password.routes';
+import { crearSesionesRouter } from './presentacion/sesiones.routes';
+import { crearAdminRouter } from './presentacion/admin.routes';
+import {
+  authService,
+  pedidoService,
+  sesionRepo,
+  passwordResetService,
+  usuarioRepo,
+  pedidoRepo,
+  productoRepo
+} from './aplicacion/dependencias';
 
 const app = express();
 const PORT = 4000;
@@ -19,7 +30,7 @@ app.use(
   cors({
     origin: 'http://localhost:5173',
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
@@ -50,13 +61,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 app.get('/', (_req: Request, res: Response) => {
   res.json({
-    mensaje: 'API Portal de Catalogo - DWP Unidad 2',
+    mensaje: 'API Portal de Catalogo - DWP Unidad 3',
     endpoints: [
       'GET    /',
       'POST   /api/auth/registro',
       'POST   /api/auth/login',
       'POST   /api/auth/logout',
       'GET    /api/auth/me',
+      'POST   /api/auth/recuperar',
+      'POST   /api/auth/resetear',
       'GET    /api/productos',
       'GET    /api/productos/:id',
       'GET    /api/buscar?q=termino',
@@ -65,13 +78,28 @@ app.get('/', (_req: Request, res: Response) => {
       'GET    /api/carrito/:id',
       'POST   /api/pedidos',
       'GET    /api/pedidos',
-      'GET    /api/pedidos/:id'
+      'GET    /api/pedidos/:id',
+      'GET    /api/sesiones',
+      'DELETE /api/sesiones/:id',
+      'DELETE /api/sesiones/otras',
+      'GET    /api/admin/usuarios',
+      'GET    /api/admin/usuarios/:id/sesiones',
+      'DELETE /api/admin/usuarios/:id',
+      'GET    /api/admin/pedidos',
+      'PATCH  /api/admin/pedidos/:id/estado',
+      'GET    /api/admin/estadisticas',
+      'POST   /api/admin/productos',
+      'PUT    /api/admin/productos/:id',
+      'DELETE /api/admin/productos/:id'
     ]
   });
 });
 
 app.use('/api/auth', crearAuthRouter(authService, sesionRepo));
+app.use('/api/auth', crearPasswordRouter(passwordResetService));
 app.use('/api/pedidos', crearPedidosRouter(pedidoService, sesionRepo));
+app.use('/api/sesiones', crearSesionesRouter(sesionRepo, authService));
+app.use('/api/admin', crearAdminRouter(usuarioRepo, sesionRepo, pedidoRepo, productoRepo));
 app.use('/api', routes);
 
 app.use((_req: Request, res: Response) => {

@@ -1,7 +1,7 @@
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
-import { Usuario, IUsuarioPublico } from '../dominio/Usuario';
+import { Usuario, IUsuarioPublico, RolUsuario } from '../dominio/Usuario';
 import { UsuarioRepository } from '../infraestructura/UsuarioRepository';
 import { SesionRepository } from '../infraestructura/SesionRepository';
 
@@ -15,11 +15,18 @@ export interface IRegistroInput {
   email: string;
   password: string;
   nombreCompleto: string;
+  rol?: RolUsuario;
 }
 
 export interface ILoginInput {
   username: string;
   password: string;
+}
+
+export interface IContextoCliente {
+  dispositivo?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
 }
 
 export interface IAuthResultado {
@@ -36,7 +43,7 @@ export class AuthService {
     this.sesionRepo = sesionRepo;
   }
 
-  public async registrar(input: IRegistroInput): Promise<IAuthResultado> {
+  public async registrar(input: IRegistroInput, contexto: IContextoCliente = {}): Promise<IAuthResultado> {
     const { username, email, password, nombreCompleto } = input;
 
     if (this.usuarioRepo.buscarPorUsername(username)) {
@@ -47,15 +54,22 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-    const usuario = this.usuarioRepo.crear(username, email, passwordHash, nombreCompleto);
+    const usuario = this.usuarioRepo.crear(username, email, passwordHash, nombreCompleto, 'cliente');
 
     const { token, expiresAt } = this.generarTokenYOExpiracion(usuario);
-    this.sesionRepo.crear(token, usuario.id, expiresAt);
+    this.sesionRepo.crear(
+      token,
+      usuario.id,
+      expiresAt,
+      contexto.dispositivo ?? null,
+      contexto.ip ?? null,
+      contexto.userAgent ?? null
+    );
 
     return { token, usuario: this.aPublico(usuario) };
   }
 
-  public async login(input: ILoginInput): Promise<IAuthResultado> {
+  public async login(input: ILoginInput, contexto: IContextoCliente = {}): Promise<IAuthResultado> {
     const { username, password } = input;
 
     const usuario = this.usuarioRepo.buscarPorUsername(username);
@@ -69,7 +83,14 @@ export class AuthService {
     }
 
     const { token, expiresAt } = this.generarTokenYOExpiracion(usuario);
-    this.sesionRepo.crear(token, usuario.id, expiresAt);
+    this.sesionRepo.crear(
+      token,
+      usuario.id,
+      expiresAt,
+      contexto.dispositivo ?? null,
+      contexto.ip ?? null,
+      contexto.userAgent ?? null
+    );
 
     return { token, usuario: this.aPublico(usuario) };
   }
@@ -82,10 +103,10 @@ export class AuthService {
     return this.sesionRepo.buscar(token);
   }
 
-  private generarTokenYOExpiracion(usuario: Usuario): { token: string; expiresAt: string } {
+  public generarTokenYOExpiracion(usuario: Usuario): { token: string; expiresAt: string } {
     const jti = crypto.randomBytes(16).toString('hex');
     const token = jwt.sign(
-      { usuarioId: usuario.id, username: usuario.username, jti },
+      { usuarioId: usuario.id, username: usuario.username, rol: usuario.rol, jti },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -97,12 +118,13 @@ export class AuthService {
     return { token, expiresAt };
   }
 
-  private aPublico(usuario: Usuario): IUsuarioPublico {
+  public aPublico(usuario: Usuario): IUsuarioPublico {
     return {
       id: usuario.id,
       username: usuario.username,
       email: usuario.email,
-      nombreCompleto: usuario.nombreCompleto
+      nombreCompleto: usuario.nombreCompleto,
+      rol: usuario.rol
     };
   }
 }

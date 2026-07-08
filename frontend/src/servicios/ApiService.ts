@@ -1,7 +1,7 @@
 import { Producto } from '../clases/Producto';
 import { ILoginDatos, ILoginRespuesta, IRegistroDatos } from '../clases/AuthService';
-import { IUsuario } from '../clases/Sesion';
-import { IPedido, IPedidoItem, IDireccionEnvioSnapshot } from '../clases/Pedido';
+import { IUsuario, Rol } from '../clases/Sesion';
+import { IPedido, IPedidoItem, IDireccionEnvioSnapshot, EstadoPedido } from '../clases/Pedido';
 
 const API_BASE = 'http://localhost:4000/api';
 
@@ -14,6 +14,42 @@ export function setTokenGlobal(token: string | null): void {
 
 export function setManejadorNoAutorizado(manejador: () => void): void {
   _manejadorNoAutorizado = manejador;
+}
+
+export interface ISesionRemota {
+  id: number | string;
+  dispositivo?: string;
+  userAgent?: string;
+  ip?: string;
+  fechaCreacion?: string;
+  createdAt?: string;
+  actual?: boolean;
+  esActual?: boolean;
+}
+
+export interface IProductoPayload {
+  nombre: string;
+  descripcion: string;
+  precio: number;
+  categoria: string;
+  imagen: string;
+  stock: number;
+  rating?: number;
+}
+
+export interface IRecuperacionRespuesta {
+  mensaje?: string;
+  token?: string;
+  resetToken?: string;
+  expiraEn?: number;
+}
+
+export interface IEstadisticas {
+  totalUsuarios: number;
+  totalPedidos: number;
+  ingresosTotales: number;
+  pedidosPorEstado: Record<EstadoPedido | string, number>;
+  topProductos: { productoId: number; nombre?: string; totalVendidos: number; ingresos: number }[];
 }
 
 export class ApiService {
@@ -39,6 +75,9 @@ export class ApiService {
       if (_manejadorNoAutorizado) _manejadorNoAutorizado();
       throw new Error('No autorizado');
     }
+    if (respuesta.status === 403) {
+      throw new Error('Acceso denegado: se requiere rol de administrador');
+    }
     if (!respuesta.ok) {
       let mensaje = `HTTP error: ${respuesta.status}`;
       try {
@@ -53,6 +92,13 @@ export class ApiService {
     const json = await respuesta.json();
     if (json && json.success === false) {
       throw new Error(json.error || 'Error desconocido');
+    }
+    return json as T;
+  }
+
+  private extraerDato<T>(json: any): T {
+    if (json && typeof json === 'object' && 'data' in json) {
+      return json.data as T;
     }
     return json as T;
   }
@@ -133,7 +179,7 @@ export class ApiService {
         body: JSON.stringify(datos)
       });
       const json = await this.manejarRespuesta<{ success: boolean; data: ILoginRespuesta }>(respuesta);
-      const data = json.data ?? (json as unknown as ILoginRespuesta);
+      const data = this.extraerDato<ILoginRespuesta>(json);
       _tokenActual = data.token;
       return data;
     } catch (error) {
@@ -150,7 +196,7 @@ export class ApiService {
         body: JSON.stringify(datos)
       });
       const json = await this.manejarRespuesta<{ success: boolean; data: ILoginRespuesta }>(respuesta);
-      const data = json.data ?? (json as unknown as ILoginRespuesta);
+      const data = this.extraerDato<ILoginRespuesta>(json);
       _tokenActual = data.token;
       return data;
     } catch (error) {
@@ -177,7 +223,7 @@ export class ApiService {
       });
       if (respuesta.status === 401) return null;
       const json = await this.manejarRespuesta<{ success: boolean; data: IUsuario }>(respuesta);
-      return json.data;
+      return this.extraerDato<IUsuario>(json);
     } catch (error) {
       console.error('Error en obtenerPerfil:', error);
       throw error;
@@ -196,7 +242,7 @@ export class ApiService {
         body: JSON.stringify(payload)
       });
       const json = await this.manejarRespuesta<{ success: boolean; data: IPedido }>(respuesta);
-      return json.data;
+      return this.extraerDato<IPedido>(json);
     } catch (error) {
       console.error('Error en crearPedido:', error);
       throw error;
@@ -209,7 +255,8 @@ export class ApiService {
         headers: this.headers(true)
       });
       const json = await this.manejarRespuesta<{ success: boolean; data: IPedido[] }>(respuesta);
-      return Array.isArray(json.data) ? json.data : [];
+      const data = this.extraerDato<IPedido[]>(json);
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Error en obtenerPedidos:', error);
       throw error;
@@ -223,9 +270,203 @@ export class ApiService {
       });
       if (respuesta.status === 404) return null;
       const json = await this.manejarRespuesta<{ success: boolean; data: IPedido }>(respuesta);
-      return json.data;
+      return this.extraerDato<IPedido>(json);
     } catch (error) {
       console.error('Error en obtenerPedidoPorId:', error);
+      throw error;
+    }
+  }
+
+  public async solicitarRecuperacion(email: string): Promise<IRecuperacionRespuesta> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/auth/recuperar`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify({ email })
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: IRecuperacionRespuesta }>(respuesta);
+      return this.extraerDato<IRecuperacionRespuesta>(json);
+    } catch (error) {
+      console.error('Error en solicitarRecuperacion:', error);
+      throw error;
+    }
+  }
+
+  public async resetearPassword(token: string, nuevoPassword: string): Promise<{ mensaje: string }> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/auth/resetear`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify({ token, nuevoPassword })
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: { mensaje: string } }>(respuesta);
+      return this.extraerDato<{ mensaje: string }>(json);
+    } catch (error) {
+      console.error('Error en resetearPassword:', error);
+      throw error;
+    }
+  }
+
+  public async obtenerSesiones(): Promise<ISesionRemota[]> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/auth/sesiones`, {
+        headers: this.headers(true)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: ISesionRemota[] }>(respuesta);
+      const data = this.extraerDato<ISesionRemota[]>(json);
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Error en obtenerSesiones:', error);
+      throw error;
+    }
+  }
+
+  public async cerrarSesionRemota(id: number | string): Promise<{ mensaje: string }> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/auth/sesiones/${id}`, {
+        method: 'DELETE',
+        headers: this.headers(true)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: { mensaje: string } }>(respuesta);
+      return this.extraerDato<{ mensaje: string }>(json);
+    } catch (error) {
+      console.error('Error en cerrarSesion:', error);
+      throw error;
+    }
+  }
+
+  public async cerrarOtrasSesiones(): Promise<{ mensaje: string; cerradas: number }> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/auth/sesiones/otras`, {
+        method: 'DELETE',
+        headers: this.headers(true)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: { mensaje: string; cerradas: number } }>(respuesta);
+      return this.extraerDato<{ mensaje: string; cerradas: number }>(json);
+    } catch (error) {
+      console.error('Error en cerrarOtrasSesiones:', error);
+      throw error;
+    }
+  }
+
+  public async obtenerEstadisticas(): Promise<IEstadisticas> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/admin/estadisticas`, {
+        headers: this.headers(true)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: IEstadisticas }>(respuesta);
+      return this.extraerDato<IEstadisticas>(json);
+    } catch (error) {
+      console.error('Error en obtenerEstadisticas:', error);
+      throw error;
+    }
+  }
+
+  public async obtenerTodosPedidos(): Promise<IPedido[]> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/admin/pedidos`, {
+        headers: this.headers(true)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: IPedido[] }>(respuesta);
+      const data = this.extraerDato<IPedido[]>(json);
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Error en obtenerTodosPedidos:', error);
+      throw error;
+    }
+  }
+
+  public async obtenerTodosUsuarios(): Promise<IUsuario[]> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/admin/usuarios`, {
+        headers: this.headers(true)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: IUsuario[] }>(respuesta);
+      const data = this.extraerDato<IUsuario[]>(json);
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Error en obtenerTodosUsuarios:', error);
+      throw error;
+    }
+  }
+
+  public async actualizarEstadoPedido(id: number | string, estado: EstadoPedido | string): Promise<IPedido> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/admin/pedidos/${id}/estado`, {
+        method: 'PATCH',
+        headers: this.headers(true),
+        body: JSON.stringify({ estado })
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: IPedido }>(respuesta);
+      return this.extraerDato<IPedido>(json);
+    } catch (error) {
+      console.error('Error en actualizarEstadoPedido:', error);
+      throw error;
+    }
+  }
+
+  public async crearProducto(payload: IProductoPayload): Promise<Producto> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/admin/productos`, {
+        method: 'POST',
+        headers: this.headers(true),
+        body: JSON.stringify(payload)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: any }>(respuesta);
+      const data = this.extraerDato<any>(json);
+      return new Producto(
+        data.id, data.nombre, data.descripcion, data.precio,
+        data.categoria, data.imagen, data.stock, data.rating
+      );
+    } catch (error) {
+      console.error('Error en crearProducto:', error);
+      throw error;
+    }
+  }
+
+  public async actualizarProducto(id: number | string, payload: Partial<IProductoPayload>): Promise<Producto> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/admin/productos/${id}`, {
+        method: 'PUT',
+        headers: this.headers(true),
+        body: JSON.stringify(payload)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: any }>(respuesta);
+      const data = this.extraerDato<any>(json);
+      return new Producto(
+        data.id, data.nombre, data.descripcion, data.precio,
+        data.categoria, data.imagen, data.stock, data.rating
+      );
+    } catch (error) {
+      console.error('Error en actualizarProducto:', error);
+      throw error;
+    }
+  }
+
+  public async eliminarProducto(id: number | string): Promise<{ mensaje: string }> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/admin/productos/${id}`, {
+        method: 'DELETE',
+        headers: this.headers(true)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: { mensaje: string } }>(respuesta);
+      return this.extraerDato<{ mensaje: string }>(json);
+    } catch (error) {
+      console.error('Error en eliminarProducto:', error);
+      throw error;
+    }
+  }
+
+  public async eliminarUsuario(id: number | string): Promise<{ mensaje: string }> {
+    try {
+      const respuesta = await fetch(`${this._baseUrl}/admin/usuarios/${id}`, {
+        method: 'DELETE',
+        headers: this.headers(true)
+      });
+      const json = await this.manejarRespuesta<{ success: boolean; data: { mensaje: string } }>(respuesta);
+      return this.extraerDato<{ mensaje: string }>(json);
+    } catch (error) {
+      console.error('Error en eliminarUsuario:', error);
       throw error;
     }
   }

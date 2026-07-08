@@ -1,9 +1,12 @@
+export type RolUsuario = 'admin' | 'cliente';
+
 export interface IUsuario {
   id: number;
   username: string;
   email: string;
   passwordHash: string;
   nombreCompleto: string;
+  rol: RolUsuario;
   createdAt: string;
 }
 
@@ -12,6 +15,7 @@ export interface IUsuarioPublico {
   username: string;
   email: string;
   nombreCompleto: string;
+  rol: RolUsuario;
 }
 
 export class Usuario implements IUsuario {
@@ -21,6 +25,7 @@ export class Usuario implements IUsuario {
     public email: string,
     public passwordHash: string,
     public nombreCompleto: string,
+    public rol: RolUsuario = 'cliente',
     public createdAt: string = new Date().toISOString()
   ) {}
 
@@ -39,6 +44,7 @@ export class Usuario implements IUsuario {
       username: this.username,
       email: this.email,
       nombreCompleto: this.nombreCompleto,
+      rol: this.rol,
       createdAt: this.createdAt
     };
   }
@@ -49,14 +55,17 @@ export class Usuario implements IUsuario {
     email: string;
     password_hash: string;
     nombre_completo: string;
+    rol?: string | null;
     created_at: string;
   }): Usuario {
+    const rol: RolUsuario = fila.rol === 'admin' ? 'admin' : 'cliente';
     return new Usuario(
       fila.id,
       fila.username,
       fila.email,
       fila.password_hash,
       fila.nombre_completo,
+      rol,
       fila.created_at
     );
   }

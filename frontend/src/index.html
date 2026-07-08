@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Portal de Catalogo - DWP Unidad 2</title>
+  <title>Portal de Catalogo - DWP Unidad 3</title>
   <link rel="stylesheet" href="./estilos/estilos.css" />
 </head>
 <body>
@@ -29,7 +29,10 @@
       </div>
       <div id="usuario-contenedor" class="usuario-contenedor oculto">
         <span class="usuario-nombre" id="usuario-nombre">Usuario</span>
+        <span class="rol-tag" id="rol-tag"></span>
         <button class="btn-auth btn-mis-pedidos" id="btn-mis-pedidos" type="button">Mis Pedidos</button>
+        <button class="btn-auth btn-mis-sesiones" id="btn-mis-sesiones" type="button">Mis Sesiones</button>
+        <button class="btn-auth btn-admin oculto" id="btn-admin" type="button">Panel Admin</button>
         <button class="btn-auth btn-logout" id="btn-logout" type="button">Cerrar sesion</button>
       </div>
 
@@ -48,7 +51,7 @@
       </p>
     </section>
 
-    <section class="catalogo">
+    <section class="catalogo" id="seccion-catalogo">
       <h2 class="seccion-titulo">Nuestros Productos</h2>
       <div id="grid-productos" class="grid-productos">
         <p class="cargando">Cargando productos...</p>
@@ -59,6 +62,32 @@
       <h2 class="seccion-titulo">Mis Pedidos</h2>
       <div id="pedidos-contenido" class="pedidos-contenido">
         <p class="cargando">Cargando pedidos...</p>
+      </div>
+    </section>
+
+    <section class="sesiones-seccion oculto" id="seccion-sesiones">
+      <h2 class="seccion-titulo">Mis Sesiones Activas</h2>
+      <p class="seccion-descripcion">Aqui puedes ver y cerrar sesion en otros dispositivos.</p>
+      <div id="sesiones-contenido" class="sesiones-contenido">
+        <p class="cargando">Cargando sesiones...</p>
+      </div>
+    </section>
+
+    <section class="admin-seccion oculto" id="seccion-admin">
+      <button class="admin-sidebar-toggle" data-sidebar-toggle type="button" aria-label="Alternar sidebar">&#9776;</button>
+      <aside class="admin-sidebar" id="admin-sidebar">
+        <h3 class="admin-sidebar-titulo">Panel Admin</h3>
+        <nav class="admin-nav">
+          <button class="admin-tab activo" data-vista="dashboard" type="button">Dashboard</button>
+          <button class="admin-tab" data-vista="usuarios" type="button">Usuarios</button>
+          <button class="admin-tab" data-vista="pedidos" type="button">Pedidos</button>
+          <button class="admin-tab" data-vista="productos" type="button">Productos</button>
+        </nav>
+      </aside>
+      <div class="admin-contenido-wrapper">
+        <div id="admin-contenido" class="admin-contenido">
+          <p class="cargando">Cargando panel...</p>
+        </div>
       </div>
     </section>
 
@@ -79,7 +108,7 @@
   </main>
 
   <footer class="footer">
-    <p>&copy; 2026 TechStore - DWP Unidad 2 - Camacho Ibarra Jorge Jair</p>
+    <p>&copy; 2026 TechStore - DWP Unidad 3 - Camacho Ibarra Jorge Jair</p>
   </footer>
 
   <div id="modal-login" class="modal oculto" aria-hidden="true">
@@ -98,6 +127,9 @@
         </div>
         <p class="form-error" id="login-error"></p>
         <button type="submit" class="btn-auth btn-primary">Entrar</button>
+        <p class="form-link">
+          <a href="#" id="link-olvide-password">Olvide mi contrasena</a>
+        </p>
         <p class="form-link">No tienes cuenta? <a href="#" id="link-ir-registro">Registrate</a></p>
       </form>
     </div>
@@ -131,6 +163,68 @@
         <button type="submit" class="btn-auth btn-primary">Crear cuenta</button>
         <p class="form-link">Ya tienes cuenta? <a href="#" id="link-ir-login">Inicia sesion</a></p>
       </form>
+    </div>
+  </div>
+
+  <div id="modal-recuperar" class="modal oculto" aria-hidden="true">
+    <div class="modal-backdrop" data-cerrar-modal="modal-recuperar"></div>
+    <div class="modal-contenido modal-recuperar-contenido">
+      <button class="btn-cerrar-modal" data-cerrar-modal="modal-recuperar" type="button">&times;</button>
+
+      <div id="recuperar-paso-solicitar">
+        <h2>Recuperar contrasena</h2>
+        <p class="form-link" style="text-align:left;margin-bottom:.8rem">
+          Ingresa tu email y te enviaremos un enlace para restablecer tu contrasena.
+        </p>
+        <form id="form-recuperar-solicitar" class="form-auth" novalidate>
+          <div class="campo">
+            <label for="recuperar-email">Email</label>
+            <input type="email" id="recuperar-email" name="email" required />
+          </div>
+          <p class="form-error" id="recuperar-solicitar-error"></p>
+          <button type="submit" class="btn-auth btn-primary">Enviar enlace</button>
+        </form>
+      </div>
+
+      <div id="recuperar-paso-resetear" class="oculto">
+        <h2>Restablecer contrasena</h2>
+        <p class="form-link" style="text-align:left;margin-bottom:.8rem">
+          En desarrollo: simula el email mostrando el token generado. Copialo y pegalo abajo.
+        </p>
+        <div class="token-desarrollo-contenedor">
+          <span class="token-label">Token (simulado):</span>
+          <code id="recuperar-token-desarrollo" class="token-valor">...</code>
+        </div>
+        <form id="form-recuperar-resetear" class="form-auth" novalidate>
+          <div class="campo">
+            <label for="recuperar-token">Token recibido</label>
+            <input type="text" id="recuperar-token" name="token" required />
+          </div>
+          <div class="campo">
+            <label for="recuperar-nuevo">Nueva contrasena</label>
+            <input type="password" id="recuperar-nuevo" name="nuevoPassword" required minlength="6" />
+          </div>
+          <div class="campo">
+            <label for="recuperar-confirmar">Confirmar contrasena</label>
+            <input type="password" id="recuperar-confirmar" name="confirmarPassword" required minlength="6" />
+          </div>
+          <p class="form-error" id="recuperar-resetear-error"></p>
+          <button type="submit" class="btn-auth btn-primary">Cambiar contrasena</button>
+        </form>
+      </div>
+
+      <div id="recuperar-paso-exito" class="oculto">
+        <div class="check-animado">&#10003;</div>
+        <h3 style="color:#feca57;text-align:center">Contrasena actualizada</h3>
+        <p style="text-align:center;color:#d0d0d0;margin:1rem 0">
+          Tu contrasena fue cambiada con exito. Ya puedes iniciar sesion.
+        </p>
+        <button class="btn-auth btn-primary" id="btn-recuperar-ir-login" type="button">Ir a iniciar sesion</button>
+      </div>
+
+      <p class="form-link">
+        <a href="#" id="btn-recuperar-volver-login">Volver a iniciar sesion</a>
+      </p>
     </div>
   </div>
 
@@ -189,6 +283,51 @@
     <div class="modal-contenido modal-pedido-contenido">
       <button class="btn-cerrar-modal" data-cerrar-modal="modal-detalle-pedido" type="button">&times;</button>
       <div id="detalle-pedido-contenido"></div>
+    </div>
+  </div>
+
+  <div id="modal-producto" class="modal oculto" aria-hidden="true">
+    <div class="modal-backdrop" data-cerrar-modal="modal-producto"></div>
+    <div class="modal-contenido modal-producto-contenido">
+      <button class="btn-cerrar-modal" data-cerrar-modal="modal-producto" type="button">&times;</button>
+      <h2 id="form-producto-titulo">Nuevo producto</h2>
+      <form id="form-producto" class="form-auth" novalidate>
+        <input type="hidden" id="prod-id" name="id" />
+        <div class="campo">
+          <label for="prod-nombre">Nombre</label>
+          <input type="text" id="prod-nombre" name="nombre" required minlength="2" />
+        </div>
+        <div class="campo">
+          <label for="prod-descripcion">Descripcion</label>
+          <textarea id="prod-descripcion" name="descripcion" rows="3" required></textarea>
+        </div>
+        <div class="fila-doble">
+          <div class="campo">
+            <label for="prod-precio">Precio (MXN)</label>
+            <input type="number" id="prod-precio" name="precio" required min="0" step="0.01" />
+          </div>
+          <div class="campo">
+            <label for="prod-stock">Stock</label>
+            <input type="number" id="prod-stock" name="stock" required min="0" step="1" />
+          </div>
+        </div>
+        <div class="fila-doble">
+          <div class="campo">
+            <label for="prod-categoria">Categoria</label>
+            <input type="text" id="prod-categoria" name="categoria" required />
+          </div>
+          <div class="campo">
+            <label for="prod-rating">Rating</label>
+            <input type="number" id="prod-rating" name="rating" min="0" max="5" step="0.1" value="0" />
+          </div>
+        </div>
+        <div class="campo">
+          <label for="prod-imagen">URL de imagen</label>
+          <input type="text" id="prod-imagen" name="imagen" required />
+        </div>
+        <p class="form-error" id="producto-error"></p>
+        <button type="submit" class="btn-auth btn-primary">Guardar</button>
+      </form>
     </div>
   </div>
 

@@ -14,8 +14,20 @@ export interface IReglaCampo {
   mensaje?: string;
 }
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_REGEX =
+  /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 const USERNAME_REGEX = /^[a-zA-Z0-9]+$/;
+const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+
+export const ESTADOS_PEDIDO = [
+  'pendiente',
+  'procesando',
+  'enviado',
+  'entregado',
+  'cancelado'
+] as const;
+
+export type EstadoPedidoAdmin = (typeof ESTADOS_PEDIDO)[number];
 
 export function validarCampos(reglas: IReglaCampo[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -85,6 +97,15 @@ export function validarCampos(reglas: IReglaCampo[]) {
   };
 }
 
+export function validarPassword(password: unknown): string | null {
+  if (typeof password !== 'string') return 'password debe ser texto';
+  if (password.length < 6) return 'password debe tener minimo 6 caracteres';
+  if (!PASSWORD_REGEX.test(password)) {
+    return 'password debe tener al menos una letra y un numero';
+  }
+  return null;
+}
+
 function cumpleTipo(valor: any, tipo: TipoValidacion): boolean {
   switch (tipo) {
     case 'string':
@@ -108,5 +129,6 @@ function cumpleTipo(valor: any, tipo: TipoValidacion): boolean {
 
 export const PATRONES = {
   username: USERNAME_REGEX,
-  email: EMAIL_REGEX
+  email: EMAIL_REGEX,
+  password: PASSWORD_REGEX
 };

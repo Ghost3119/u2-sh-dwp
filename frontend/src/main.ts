@@ -5,8 +5,13 @@ import { Sesion } from './clases/Sesion';
 import { AuthService } from './clases/AuthService';
 import { Checkout, IDireccionEnvio } from './clases/Checkout';
 import { Pedido, IPedido } from './clases/Pedido';
+import { RecuperacionPassword } from './clases/RecuperacionPassword';
+import { GestorSesiones } from './clases/GestorSesiones';
+import { AdminPanel, SubVistaAdmin } from './clases/AdminPanel';
 import { api, setTokenGlobal, setManejadorNoAutorizado } from './servicios/ApiService';
 import { formatearPrecio, generarEstrellas, debounce, mostrarToast } from './servicios/utilidades';
+
+type Ruta = 'catalogo' | 'pedidos' | 'sesiones' | 'admin';
 
 class App {
   private carrito: Carrito = new Carrito();
@@ -18,6 +23,11 @@ class App {
   private authService: AuthService = new AuthService(this.sesion);
   private checkoutService: Checkout = new Checkout(this.sesion);
   private pedidos: IPedido[] = [];
+  private recuperacion!: RecuperacionPassword;
+  private gestorSesiones!: GestorSesiones;
+  private adminPanel!: AdminPanel;
+  private subVistaAdmin: SubVistaAdmin = 'dashboard';
+  private enLogin: boolean = false;
 
   constructor() {
     this.inicializar();
@@ -27,6 +37,10 @@ class App {
     setTokenGlobal(this.sesion.obtenerToken());
     setManejadorNoAutorizado(() => this.manejarNoAutorizado());
 
+    this.recuperacion = new RecuperacionPassword('modal-recuperar');
+    this.gestorSesiones = new GestorSesiones('seccion-sesiones');
+    this.adminPanel = new AdminPanel();
+
     this.configurarCursorTrail();
     this.configurarEventosMouse();
     this.configurarDragDrop();
@@ -35,11 +49,15 @@ class App {
     this.configurarModales();
     this.configurarFormulariosAuth();
     this.configurarCheckout();
+    this.configurarRecuperacion();
+    this.configurarProductoForm();
+    this.configurarRouter();
 
     await this.validarSesionInicial();
     await this.cargarDatos();
     this.configurarBuscador();
     this.actualizarUIAuth();
+    this.manejarRutaInicial();
   }
 
   private async validarSesionInicial(): Promise<void> {
@@ -64,6 +82,7 @@ class App {
     setTokenGlobal(null);
     this.actualizarUIAuth();
     mostrarToast('Sesion expirada, inicia sesion de nuevo');
+    this.navegarA('catalogo');
   }
 
   private configurarCursorTrail(): void {
@@ -164,7 +183,13 @@ class App {
     if (btnLogout) btnLogout.addEventListener('click', () => this.cerrarSesion());
 
     const btnMisPedidos = document.getElementById('btn-mis-pedidos');
-    if (btnMisPedidos) btnMisPedidos.addEventListener('click', () => this.mostrarSeccionPedidos());
+    if (btnMisPedidos) btnMisPedidos.addEventListener('click', () => this.navegarA('pedidos'));
+
+    const btnMisSesiones = document.getElementById('btn-mis-sesiones');
+    if (btnMisSesiones) btnMisSesiones.addEventListener('click', () => this.navegarA('sesiones'));
+
+    const btnAdmin = document.getElementById('btn-admin');
+    if (btnAdmin) btnAdmin.addEventListener('click', () => this.navegarA('admin'));
   }
 
   private configurarModales(): void {
@@ -176,12 +201,8 @@ class App {
     });
 
     document.querySelectorAll('.modal-contenido').forEach(el => {
-      el.addEventListener('mouseenter', () => {
-        el.classList.add('hover');
-      });
-      el.addEventListener('mouseleave', () => {
-        el.classList.remove('hover');
-      });
+      el.addEventListener('mouseenter', () => el.classList.add('hover'));
+      el.addEventListener('mouseleave', () => el.classList.remove('hover'));
     });
 
     document.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -193,14 +214,10 @@ class App {
 
   private configurarFormulariosAuth(): void {
     const formLogin = document.getElementById('form-login') as HTMLFormElement | null;
-    if (formLogin) {
-      formLogin.addEventListener('submit', (e: Event) => this.handleLogin(e));
-    }
+    if (formLogin) formLogin.addEventListener('submit', (e: Event) => this.handleLogin(e));
 
     const formRegistro = document.getElementById('form-registro') as HTMLFormElement | null;
-    if (formRegistro) {
-      formRegistro.addEventListener('submit', (e: Event) => this.handleRegistro(e));
-    }
+    if (formRegistro) formRegistro.addEventListener('submit', (e: Event) => this.handleRegistro(e));
 
     const linkIrRegistro = document.getElementById('link-ir-registro');
     if (linkIrRegistro) {
@@ -219,13 +236,137 @@ class App {
         setTimeout(() => this.abrirModal('modal-login'), 200);
       });
     }
+
+    const linkOlvide = document.getElementById('link-olvide-password');
+    if (linkOlvide) {
+      linkOlvide.addEventListener('click', (e: Event) => {
+        e.preventDefault();
+        this.cerrarModal('modal-login');
+        this.enLogin = false;
+        setTimeout(() => {
+          this.abrirModal('modal-recuperar');
+          this.recuperacion.irAPaso('solicitar');
+        }, 200);
+      });
+    }
+  }
+
+  private configurarRecuperacion(): void {
+    this.recuperacion.onCerrar(() => this.cerrarModal('modal-recuperar'));
+    this.recuperacion.onIrLogin(() => {
+      this.cerrarModal('modal-recuperar');
+      setTimeout(() => this.abrirModal('modal-login'), 200);
+    });
+    this.recuperacion.inicializar();
+  }
+
+  private configurarProductoForm(): void {
+    const form = document.getElementById('form-producto') as HTMLFormElement | null;
+    if (form) {
+      form.addEventListener('submit', (e: Event) => this.adminPanel.guardarProducto(e));
+    }
   }
 
   private configurarCheckout(): void {
     const formCheckout = document.getElementById('form-checkout') as HTMLFormElement | null;
-    if (formCheckout) {
-      formCheckout.addEventListener('submit', (e: Event) => this.handleCheckout(e));
+    if (formCheckout) formCheckout.addEventListener('submit', (e: Event) => this.handleCheckout(e));
+  }
+
+  private configurarRouter(): void {
+    window.addEventListener('hashchange', () => this.manejarRuta());
+  }
+
+  private manejarRutaInicial(): void {
+    if (!window.location.hash) {
+      window.location.hash = '#/';
+    } else {
+      this.manejarRuta();
     }
+  }
+
+  private manejarRuta(): void {
+    const hash = window.location.hash.replace(/^#\/?/, '') || '';
+    const partes = hash.split('/').filter(Boolean);
+    const principal = (partes[0] || '') as 'pedidos' | 'sesiones' | 'admin' | '';
+
+    if (principal === 'admin') {
+      if (!this.sesion.estaAutenticada()) {
+        this.redirigirConError('Inicia sesion para acceder al panel admin');
+        return;
+      }
+      if (!this.sesion.esAdmin()) {
+        this.redirigirConError('No tienes permisos para acceder al panel admin');
+        return;
+      }
+      this.subVistaAdmin = (partes[1] as SubVistaAdmin) || 'dashboard';
+      this.navegarA('admin');
+      return;
+    }
+
+    if (principal === 'pedidos') {
+      if (!this.sesion.estaAutenticada()) {
+        this.redirigirConError('Inicia sesion para ver tus pedidos');
+        return;
+      }
+      this.navegarA('pedidos');
+      return;
+    }
+
+    if (principal === 'sesiones') {
+      if (!this.sesion.estaAutenticada()) {
+        this.redirigirConError('Inicia sesion para ver tus sesiones');
+        return;
+      }
+      this.navegarA('sesiones');
+      return;
+    }
+
+    this.navegarA('catalogo');
+  }
+
+  private redirigirConError(mensaje: string): void {
+    mostrarToast(mensaje, 2800);
+    window.location.hash = '#/';
+  }
+
+  private navegarA(ruta: Ruta): void {
+    const secciones: Record<Ruta, string> = {
+      catalogo: 'seccion-catalogo',
+      pedidos: 'seccion-pedidos',
+      sesiones: 'seccion-sesiones',
+      admin: 'seccion-admin'
+    };
+    Object.values(secciones).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('oculto');
+    });
+    const hero = document.getElementById('hero');
+    const drag = document.getElementById('zona-drag');
+
+    const targetId = secciones[ruta];
+    const target = document.getElementById(targetId);
+    if (target) {
+      target.classList.remove('oculto');
+      const anim = new Animador(target);
+      anim.fadeIn(350);
+    }
+
+    if (ruta === 'catalogo') {
+      hero?.classList.remove('oculto');
+      drag?.classList.remove('oculto');
+    } else {
+      hero?.classList.add('oculto');
+      drag?.classList.add('oculto');
+    }
+
+    if (ruta === 'pedidos') this.renderizarPedidos();
+    if (ruta === 'sesiones') this.gestorSesiones.mostrar();
+    if (ruta === 'admin') {
+      this.adminPanel.mostrar();
+      this.adminPanel.cambiarVista(this.subVistaAdmin);
+    }
+
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   private async handleLogin(e: Event): Promise<void> {
@@ -247,7 +388,8 @@ class App {
       this.cerrarModal('modal-login');
       form.reset();
       if (errorEl) errorEl.textContent = '';
-      mostrarToast(`Bienvenido ${this.sesion.obtenerUsuario()?.username}`);
+      const rol = this.sesion.esAdmin() ? 'admin' : 'cliente';
+      mostrarToast(`Bienvenido ${this.sesion.obtenerUsuario()?.username} (${rol})`);
     } catch (error) {
       const mensaje = error instanceof Error ? error.message : 'Error al iniciar sesion';
       this.mostrarErrorForm(form, errorEl, mensaje);
@@ -307,8 +449,8 @@ class App {
       setTokenGlobal(null);
       this.actualizarUIAuth();
       this.pedidos = [];
-      const sec = document.getElementById('seccion-pedidos');
-      if (sec) sec.classList.add('oculto');
+      this.subVistaAdmin = 'dashboard';
+      window.location.hash = '#/';
       mostrarToast('Sesion cerrada');
     }
   }
@@ -317,17 +459,27 @@ class App {
     const contAuth = document.getElementById('auth-contenedor');
     const contUser = document.getElementById('usuario-contenedor');
     const nombreEl = document.getElementById('usuario-nombre');
+    const btnAdmin = document.getElementById('btn-admin');
+    const rolTag = document.getElementById('rol-tag');
 
     if (this.sesion.estaAutenticada()) {
       contAuth?.classList.add('oculto');
       contUser?.classList.remove('oculto');
       const u = this.sesion.obtenerUsuario();
-      if (u && nombreEl) {
-        nombreEl.textContent = u.nombreCompleto || u.username;
+      if (u && nombreEl) nombreEl.textContent = u.nombreCompleto || u.username;
+      if (rolTag) {
+        const rol = this.sesion.obtenerRol();
+        rolTag.textContent = rol;
+        rolTag.className = `rol-tag rol-${rol}`;
+      }
+      if (btnAdmin) {
+        if (this.sesion.esAdmin()) btnAdmin.classList.remove('oculto');
+        else btnAdmin.classList.add('oculto');
       }
     } else {
       contAuth?.classList.remove('oculto');
       contUser?.classList.add('oculto');
+      if (btnAdmin) btnAdmin.classList.add('oculto');
     }
   }
 
@@ -505,11 +657,7 @@ class App {
     anim.slideIn('right', 400);
 
     const btnAdd = document.getElementById('btn-add-detalle');
-    if (btnAdd) {
-      btnAdd.addEventListener('click', () => {
-        this.agregarAlCarrito(detalleCompleto);
-      });
-    }
+    if (btnAdd) btnAdd.addEventListener('click', () => this.agregarAlCarrito(detalleCompleto));
   }
 
   private cerrarPanelDetalle(): void {
@@ -609,9 +757,7 @@ class App {
     }
 
     const btnFinalizar = document.getElementById('btn-finalizar');
-    if (btnFinalizar) {
-      btnFinalizar.addEventListener('click', () => this.iniciarCheckout());
-    }
+    if (btnFinalizar) btnFinalizar.addEventListener('click', () => this.iniciarCheckout());
   }
 
   private iniciarCheckout(): void {
@@ -670,7 +816,7 @@ class App {
       this.pedidos = [pedido, ...this.pedidos];
       setTimeout(() => {
         this.cerrarModal('modal-checkout');
-        this.mostrarSeccionPedidos();
+        window.location.hash = '#/pedidos';
       }, 2200);
     } catch (error) {
       const mensaje = error instanceof Error ? error.message : 'Error al procesar pedido';
@@ -685,14 +831,6 @@ class App {
     const exito = document.getElementById('checkout-exito');
     if (form) form.classList.add('oculto');
     if (exito) exito.classList.remove('oculto');
-  }
-
-  private mostrarSeccionPedidos(): void {
-    const sec = document.getElementById('seccion-pedidos');
-    if (!sec) return;
-    sec.classList.remove('oculto');
-    this.renderizarPedidos();
-    sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   private renderizarPedidos(): void {
@@ -782,6 +920,10 @@ class App {
         const form = document.getElementById('form-checkout');
         if (exito) exito.classList.add('oculto');
         if (form) form.classList.remove('oculto');
+      }
+      if (id === 'modal-producto') {
+        const form = document.getElementById('form-producto') as HTMLFormElement | null;
+        if (form) form.reset();
       }
     }, 250);
   }

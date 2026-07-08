@@ -136,4 +136,93 @@ export class ProductoRepository {
     });
     tx();
   }
+
+  public async crear(data: {
+    nombre: string;
+    descripcion: string;
+    precio: number;
+    categoria: string;
+    imagen: string;
+    stock: number;
+    rating?: number;
+  }): Promise<Producto> {
+    const result = this.conn
+      .prepare(
+        `INSERT INTO productos (nombre, descripcion, precio, categoria, imagen_url, stock, rating)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        data.nombre,
+        data.descripcion,
+        data.precio,
+        data.categoria,
+        data.imagen,
+        data.stock,
+        data.rating ?? 0
+      );
+    const id = Number(result.lastInsertRowid);
+    const producto = await this.obtenerPorId(id);
+    if (!producto) {
+      throw new Error('No se pudo recuperar el producto creado');
+    }
+    return producto;
+  }
+
+  public async actualizar(
+    id: number,
+    data: Partial<{
+      nombre: string;
+      descripcion: string;
+      precio: number;
+      categoria: string;
+      imagen: string;
+      stock: number;
+      rating: number;
+    }>
+  ): Promise<Producto | null> {
+    const campos: string[] = [];
+    const valores: any[] = [];
+    const mapa: Record<string, string> = {
+      nombre: 'nombre',
+      descripcion: 'descripcion',
+      precio: 'precio',
+      categoria: 'categoria',
+      imagen: 'imagen_url',
+      stock: 'stock',
+      rating: 'rating'
+    };
+    for (const key of Object.keys(data)) {
+      const valor = (data as any)[key];
+      if (valor === undefined) continue;
+      const columna = mapa[key];
+      if (!columna) continue;
+      campos.push(`${columna} = ?`);
+      valores.push(valor);
+    }
+    if (campos.length === 0) {
+      return this.obtenerPorId(id);
+    }
+    valores.push(id);
+    const result = this.conn
+      .prepare(`UPDATE productos SET ${campos.join(', ')} WHERE id = ?`)
+      .run(...valores);
+    if (Number(result.changes) === 0) {
+      return null;
+    }
+    return this.obtenerPorId(id);
+  }
+
+  public async eliminar(id: number): Promise<boolean> {
+    const result = this.conn
+      .prepare(`DELETE FROM productos WHERE id = ?`)
+      .run(id);
+    return Number(result.changes) > 0;
+  }
+
+  public async contarTodos(): Promise<number> {
+    const row = this.conn
+      .prepare(`SELECT COUNT(*) as c FROM productos`)
+      .get() as { c: number };
+    return row.c;
+  }
 }

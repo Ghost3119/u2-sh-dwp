@@ -17,6 +17,7 @@ export interface ILoginRespuesta {
   token: string;
   usuario: IUsuario;
   expiracion?: number;
+  rol?: 'admin' | 'cliente' | string;
 }
 
 export class AuthService {
@@ -31,9 +32,7 @@ export class AuthService {
   public async registrar(datos: IRegistroDatos): Promise<IUsuario> {
     try {
       const respuesta = await api.registro(datos);
-      if (respuesta.token && respuesta.usuario) {
-        this._sesion.iniciar(respuesta.token, respuesta.usuario, respuesta.expiracion);
-      }
+      this.guardarSesion(respuesta);
       return respuesta.usuario;
     } catch (error) {
       console.error('Error en registrar:', error);
@@ -44,7 +43,7 @@ export class AuthService {
   public async login(username: string, password: string): Promise<IUsuario> {
     try {
       const respuesta = await api.login({ username, password });
-      this._sesion.iniciar(respuesta.token, respuesta.usuario, respuesta.expiracion);
+      this.guardarSesion(respuesta);
       return respuesta.usuario;
     } catch (error) {
       console.error('Error en login:', error);
@@ -67,13 +66,24 @@ export class AuthService {
     try {
       const perfil = await api.obtenerPerfil();
       if (perfil) {
-        this._sesion.iniciar(this._sesion.obtenerToken() as string, perfil, this._sesion.expiracion);
+        const token = this._sesion.obtenerToken() as string;
+        const rol = (perfil as IUsuario).rol ?? (perfil as IUsuario).role;
+        this._sesion.iniciar(token, perfil, this._sesion.expiracion);
+        if (rol) this._sesion.actualizarRol(rol);
       }
       return perfil;
     } catch (error) {
       console.warn('No se pudo obtener perfil, limpiando sesion');
       this._sesion.cerrar();
       return null;
+    }
+  }
+
+  private guardarSesion(respuesta: ILoginRespuesta): void {
+    if (respuesta.token && respuesta.usuario) {
+      const rol = respuesta.rol ?? respuesta.usuario.rol ?? respuesta.usuario.role;
+      this._sesion.iniciar(respuesta.token, respuesta.usuario, respuesta.expiracion);
+      if (rol) this._sesion.actualizarRol(rol);
     }
   }
 }

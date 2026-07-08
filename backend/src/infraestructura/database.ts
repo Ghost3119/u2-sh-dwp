@@ -72,7 +72,43 @@ export class Database {
         FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE,
         FOREIGN KEY (producto_id) REFERENCES productos(id)
       );
+
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        token_hash TEXT UNIQUE NOT NULL,
+        expires_at TEXT NOT NULL,
+        usado INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      );
     `);
+
+    try {
+      this.connection.exec(
+        `ALTER TABLE usuarios ADD COLUMN rol TEXT NOT NULL DEFAULT 'cliente' CHECK (rol IN ('admin', 'cliente'))`
+      );
+    } catch (_e) {
+      // La columna ya existe
+    }
+
+    try {
+      this.connection.exec(`ALTER TABLE sesiones ADD COLUMN dispositivo TEXT`);
+    } catch (_e) {
+      // La columna ya existe
+    }
+
+    try {
+      this.connection.exec(`ALTER TABLE sesiones ADD COLUMN ip TEXT`);
+    } catch (_e) {
+      // La columna ya existe
+    }
+
+    try {
+      this.connection.exec(`ALTER TABLE sesiones ADD COLUMN user_agent TEXT`);
+    } catch (_e) {
+      // La columna ya existe
+    }
   }
 
   public getConn(): SqliteDatabase {
@@ -117,18 +153,30 @@ export class Database {
       tx(productosSeed);
     }
 
-    const countUsuarios = this.connection
-      .prepare('SELECT COUNT(*) as c FROM usuarios')
-      .get() as { c: number };
-
-    if (countUsuarios.c === 0) {
-      const hash = bcrypt.hashSync('demo123', 10);
+    const existeDemo = this.connection
+      .prepare('SELECT id FROM usuarios WHERE username = ?')
+      .get('demo') as { id: number } | undefined;
+    if (!existeDemo) {
+      const hashDemo = bcrypt.hashSync('demo123', 10);
       this.connection
         .prepare(
-          `INSERT INTO usuarios (username, email, password_hash, nombre_completo)
-           VALUES (?, ?, ?, ?)`
+          `INSERT INTO usuarios (username, email, password_hash, nombre_completo, rol)
+           VALUES (?, ?, ?, ?, 'cliente')`
         )
-        .run('demo', 'demo@techstore.com', hash, 'Usuario Demo');
+        .run('demo', 'demo@techstore.com', hashDemo, 'Usuario Demo');
+    }
+
+    const existeAdmin = this.connection
+      .prepare('SELECT id FROM usuarios WHERE username = ?')
+      .get('admin') as { id: number } | undefined;
+    if (!existeAdmin) {
+      const hashAdmin = bcrypt.hashSync('admin123', 10);
+      this.connection
+        .prepare(
+          `INSERT INTO usuarios (username, email, password_hash, nombre_completo, rol)
+           VALUES (?, ?, ?, ?, 'admin')`
+        )
+        .run('admin', 'admin@techstore.com', hashAdmin, 'Administrador');
     }
   }
 }

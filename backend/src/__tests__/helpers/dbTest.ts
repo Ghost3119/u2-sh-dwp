@@ -14,6 +14,7 @@ export function crearBDTest(nombre: string = ':memory:'): SqliteDatabase {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       nombre_completo TEXT NOT NULL,
+      rol TEXT NOT NULL DEFAULT 'cliente' CHECK (rol IN ('admin', 'cliente')),
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE productos (
@@ -30,8 +31,20 @@ export function crearBDTest(nombre: string = ':memory:'): SqliteDatabase {
     CREATE TABLE sesiones (
       token TEXT PRIMARY KEY,
       usuario_id INTEGER NOT NULL,
+      dispositivo TEXT,
+      ip TEXT,
+      user_agent TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       expires_at TEXT NOT NULL,
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    );
+    CREATE TABLE password_resets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id INTEGER NOT NULL,
+      token_hash TEXT UNIQUE NOT NULL,
+      expires_at TEXT NOT NULL,
+      usado INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
     );
     CREATE TABLE pedidos (
@@ -58,14 +71,42 @@ export function crearBDTest(nombre: string = ':memory:'): SqliteDatabase {
   return conn;
 }
 
-export function seedUsuarioDemo(conn: SqliteDatabase, username = 'demo'): number {
-  const hash = bcrypt.hashSync('demo123', 10);
+export function seedUsuario(
+  conn: SqliteDatabase,
+  datos: {
+    username?: string;
+    email?: string;
+    password?: string;
+    nombreCompleto?: string;
+    rol?: 'admin' | 'cliente';
+  } = {}
+): number {
+  const username = datos.username ?? 'demo';
+  const password = datos.password ?? 'demo123';
+  const email = datos.email ?? `${username}@techstore.com`;
+  const nombreCompleto = datos.nombreCompleto ?? 'Usuario Demo';
+  const rol = datos.rol ?? 'cliente';
+  const hash = bcrypt.hashSync(password, 10);
   const res = conn
     .prepare(
-      'INSERT INTO usuarios (username, email, password_hash, nombre_completo) VALUES (?, ?, ?, ?)'
+      'INSERT INTO usuarios (username, email, password_hash, nombre_completo, rol) VALUES (?, ?, ?, ?, ?)'
     )
-    .run(username, `${username}@techstore.com`, hash, 'Usuario Demo');
+    .run(username, email, hash, nombreCompleto, rol);
   return Number(res.lastInsertRowid);
+}
+
+export function seedUsuarioDemo(conn: SqliteDatabase, username = 'demo'): number {
+  return seedUsuario(conn, { username, rol: 'cliente' });
+}
+
+export function seedUsuarioAdmin(conn: SqliteDatabase, username = 'admin'): number {
+  return seedUsuario(conn, {
+    username,
+    email: `${username}@techstore.com`,
+    password: 'admin123',
+    nombreCompleto: 'Administrador',
+    rol: 'admin'
+  });
 }
 
 export function seedProducto(
@@ -100,6 +141,7 @@ export function limpiarTablas(conn: SqliteDatabase): void {
   conn.exec(`
     DELETE FROM pedido_items;
     DELETE FROM pedidos;
+    DELETE FROM password_resets;
     DELETE FROM sesiones;
     DELETE FROM productos;
     DELETE FROM usuarios;

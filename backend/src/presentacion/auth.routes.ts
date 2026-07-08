@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { AuthService, AuthError } from '../aplicacion/AuthService';
-import { validarCampos, PATRONES } from './middleware/validation.middleware';
+import { validarCampos, PATRONES, validarPassword } from './middleware/validation.middleware';
 import { requerirAuth } from './middleware/auth.middleware';
 import { SesionRepository } from '../infraestructura/SesionRepository';
+import { obtenerContextoCliente } from './middleware/contexto-cliente';
 
 export function crearAuthRouter(
   authService: AuthService,
@@ -10,17 +11,34 @@ export function crearAuthRouter(
 ): Router {
   const router = Router();
 
+  const validarPasswordMiddleware = (
+    req: Request,
+    res: Response,
+    next: import('express').NextFunction
+  ): void => {
+    const err = validarPassword(req.body?.password);
+    if (err) {
+      res.status(400).json({ success: false, errores: [err] });
+      return;
+    }
+    next();
+  };
+
   router.post(
     '/registro',
     validarCampos([
       { campo: 'username', requerido: true, tipo: 'string', minLength: 3, maxLength: 20, patron: PATRONES.username, mensaje: 'username debe tener 3-20 caracteres alfanumericos' },
       { campo: 'email', requerido: true, tipo: 'email', mensaje: 'email invalido' },
-      { campo: 'password', requerido: true, tipo: 'string', minLength: 6, mensaje: 'password debe tener minimo 6 caracteres' },
       { campo: 'nombreCompleto', requerido: true, tipo: 'string', minLength: 1, maxLength: 100, mensaje: 'nombreCompleto es requerido' }
     ]),
+    validarPasswordMiddleware,
     async (req: Request, res: Response) => {
       try {
-        const resultado = await authService.registrar(req.body);
+        const contexto = obtenerContextoCliente(
+          req.headers['user-agent'] as string | undefined,
+          req.ip
+        );
+        const resultado = await authService.registrar(req.body, contexto);
         res.status(201).json({ success: true, data: resultado });
       } catch (err) {
         if (err instanceof AuthError) {
@@ -40,7 +58,11 @@ export function crearAuthRouter(
     ]),
     async (req: Request, res: Response) => {
       try {
-        const resultado = await authService.login(req.body);
+        const contexto = obtenerContextoCliente(
+          req.headers['user-agent'] as string | undefined,
+          req.ip
+        );
+        const resultado = await authService.login(req.body, contexto);
         res.json({ success: true, data: resultado });
       } catch (err) {
         if (err instanceof AuthError) {
