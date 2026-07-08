@@ -3,7 +3,7 @@
 Proyecto monorepo **TypeScript** con **Express** (backend) y **HTML + TS + CSS** (frontend sin frameworks), con autenticación, base de datos SQLite y simulación de compras.
 
 - Materia: **Desarrollo Web Profesional**
-- Unidad: **2 - Saber Hacer**
+- Unidad: **2 - Saber Hacer** / **3 - Saber Hacer**
 - Alumnos: 
     - **Camacho Ibarra Jorge Jair**
     - **Valdez Lara Yahir Alejandro**
