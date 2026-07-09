@@ -76,7 +76,17 @@ async function clearAll(page) {
 }
 
 async function login(page, username, password) {
-  await page.click('#btn-abrir-login');
+  // Asegurarnos de que el boton de login es visible (puede estar oculto si hay sesion activa)
+  await page.evaluate(() => {
+    const contAuth = document.getElementById('auth-contenedor');
+    const contUser = document.getElementById('usuario-contenedor');
+    const btnAdmin = document.getElementById('btn-admin');
+    if (contAuth) contAuth.classList.remove('oculto');
+    if (contUser) contUser.classList.add('oculto');
+    if (btnAdmin) btnAdmin.classList.add('oculto');
+  });
+  await sleep(150);
+  await page.click('#btn-abrir-login', { timeout: 5000 });
   await sleep(450);
   await page.fill('#login-username', username);
   await page.fill('#login-password', password);
@@ -333,62 +343,56 @@ async function main() {
   // 13 - Confirmacion cerrar sesion
   // ============================================================
   console.log('\n[13] confirmacion cerrar sesion (modal propio)');
-  // La app usa confirm() del navegador. Como Playwright intercepta los dialogs,
-  // los "simulamos" mostrando un modal propio en la pagina para la captura.
-  const hayBotonCerrar = await page.locator('[data-cerrar-sesion]').count();
-  if (hayBotonCerrar > 0) {
-    // Forzamos un dialog y lo aceptamos (no aparecera en la captura)
-    page.once('dialog', async (d) => {
-      // Antes de aceptar, mostramos nuestro modal visual
-      await page.evaluate(() => {
-        const overlay = document.createElement('div');
-        overlay.id = 'modal-confirmar-sesion-demo';
-        overlay.style.cssText = `
-          position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-          display: flex; align-items: center; justify-content: center;
-          z-index: 10000; font-family: 'Segoe UI', sans-serif;
-        `;
-        overlay.innerHTML = `
-          <div style="background:#1e1e2f;border:2px solid #feca57;border-radius:14px;
-                      padding:2rem 2.5rem;max-width:480px;text-align:center;color:#eaeaea;
-                      box-shadow:0 20px 60px rgba(0,0,0,0.5)">
-            <h3 style="color:#feca57;margin:0 0 1rem;font-size:1.4rem">Cerrar otra sesion</h3>
-            <p style="margin:0 0 1.5rem;line-height:1.5">Estas seguro de cerrar esta sesion?<br/>
-              El dispositivo perdera el acceso inmediatamente.</p>
-            <div style="display:flex;gap:1rem;justify-content:center">
-              <button id="demo-cancel" style="padding:.7rem 1.5rem;background:transparent;
-                border:1px solid #666;color:#eaeaea;border-radius:8px;cursor:pointer">
-                Cancelar
-              </button>
-              <button id="demo-ok" style="padding:.7rem 1.5rem;background:#feca57;
-                border:none;color:#1e1e2f;font-weight:bold;border-radius:8px;cursor:pointer">
-                Si, cerrar
-              </button>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(overlay);
-      });
-      // No aceptamos todavia: dejamos el dialog en espera para que la captura
-      // muestre ambos (modal + dialog nativo)
-      // Aceptamos despues de un tiempo
-      setTimeout(() => d.accept(), 4000);
-    });
-    // Disparar el boton (que abre el confirm nativo)
-    await page.locator('[data-cerrar-sesion]').first().click();
-    await sleep(800);
-    results.push(await snap(page, '13-cerrar-sesion-confirmacion.png'));
-    // Limpiar modal demo
-    await page.evaluate(() => {
-      const m = document.getElementById('modal-confirmar-sesion-demo');
-      if (m) m.remove();
-    });
-    await sleep(800);
-  } else {
-    // Si no hay otras sesiones, igualmente capturamos la vista actual
-    console.log('  (no hay otras sesiones; capturando vista actual)');
-    results.push(await snap(page, '13-cerrar-sesion-confirmacion.png'));
-  }
+  // La app usa confirm() del navegador. Para la captura dibujamos un overlay
+  // que simula el dialog pidiendo confirmacion, sobre la vista de Mis Sesiones.
+  // Primero nos aseguramos de estar en #/sesiones
+  await page.evaluate(() => { window.location.hash = '#/sesiones'; });
+  await page.waitForSelector('#sesiones-contenido .sesion-card, [data-cerrar-sesion]', { timeout: 10000 });
+  await sleep(500);
+
+  // Dibujar overlay que simula el confirm del navegador
+  await page.evaluate(() => {
+    // Remover overlay previo si existe
+    const prev = document.getElementById('modal-confirmar-sesion-demo');
+    if (prev) prev.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-confirmar-sesion-demo';
+    overlay.style.cssText = `
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000; font-family: 'Segoe UI', sans-serif;
+    `;
+    overlay.innerHTML = `
+      <div style="background:#1e1e2f;border:2px solid #feca57;border-radius:14px;
+                  padding:2rem 2.5rem;max-width:480px;text-align:center;color:#eaeaea;
+                  box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+        <h3 style="color:#feca57;margin:0 0 1rem;font-size:1.4rem">Cerrar otra sesion</h3>
+        <p style="margin:0 0 .5rem;font-size:.85rem;color:#aaa">Mensaje del navegador:</p>
+        <p style="margin:0 0 1.5rem;line-height:1.5;background:rgba(0,0,0,0.3);
+                  padding:.8rem;border-radius:6px;font-family:monospace;font-size:.9rem">
+          "Cerrar esta sesion? El dispositivo perdera el acceso."</p>
+        <div style="display:flex;gap:1rem;justify-content:center">
+          <button id="demo-cancel" style="padding:.7rem 1.5rem;background:#e0e0e0;
+            border:1px solid #999;color:#222;border-radius:6px;cursor:pointer;font-weight:600">
+            Cancelar
+          </button>
+          <button id="demo-ok" style="padding:.7rem 1.5rem;background:#3084ff;
+            border:none;color:#fff;font-weight:600;border-radius:6px;cursor:pointer">
+            Aceptar
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  });
+  await sleep(600);
+  results.push(await snap(page, '13-cerrar-sesion-confirmacion.png'));
+  // Limpiar overlay
+  await page.evaluate(() => {
+    const m = document.getElementById('modal-confirmar-sesion-demo');
+    if (m) m.remove();
+  });
+  await sleep(400);
 
   // ============================================================
   // 14 - Login cliente (header SIN "Panel Admin")
