@@ -41,12 +41,14 @@ const VIEWPORT = { width: 1920, height: 1080 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function ensureServer(name, url) {
+  // Para backend probamos /api/productos (ruta real), para frontend la raiz
+  const probe = name === 'backend' ? `${BACKEND}/api/productos` : url;
   try {
-    const r = await fetch(url);
+    const r = await fetch(probe);
     if (!r.ok) throw new Error(`${name} status ${r.status}`);
-    console.log(`[ok] ${name} -> ${url} (${r.status})`);
+    console.log(`[ok] ${name} -> ${probe} (${r.status})`);
   } catch (e) {
-    console.error(`[ERROR] ${name} no responde en ${url}`);
+    console.error(`[ERROR] ${name} no responde en ${probe}`);
     console.error('Levanta los servidores antes de correr este script:');
     console.error('  cd "C:/Users/picud/Documents/UTC/8/Desarrollo Web Profesional/u2-sh-dwp" && npm run dev');
     process.exit(1);
