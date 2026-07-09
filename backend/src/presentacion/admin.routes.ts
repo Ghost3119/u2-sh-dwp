@@ -137,7 +137,7 @@ export function crearAdminRouter(
           totalUsuarios,
           totalProductos,
           totalPedidos,
-          totalIngresos,
+          ingresosTotales: totalIngresos,
           pedidosPorEstado,
           topProductos
         }

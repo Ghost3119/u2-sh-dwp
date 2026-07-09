@@ -309,7 +309,7 @@ export class ApiService {
 
   public async obtenerSesiones(): Promise<ISesionRemota[]> {
     try {
-      const respuesta = await fetch(`${this._baseUrl}/auth/sesiones`, {
+      const respuesta = await fetch(`${this._baseUrl}/sesiones`, {
         headers: this.headers(true)
       });
       const json = await this.manejarRespuesta<{ success: boolean; data: ISesionRemota[] }>(respuesta);
@@ -323,7 +323,7 @@ export class ApiService {
 
   public async cerrarSesionRemota(id: number | string): Promise<{ mensaje: string }> {
     try {
-      const respuesta = await fetch(`${this._baseUrl}/auth/sesiones/${id}`, {
+      const respuesta = await fetch(`${this._baseUrl}/sesiones/${id}`, {
         method: 'DELETE',
         headers: this.headers(true)
       });
@@ -337,7 +337,7 @@ export class ApiService {
 
   public async cerrarOtrasSesiones(): Promise<{ mensaje: string; cerradas: number }> {
     try {
-      const respuesta = await fetch(`${this._baseUrl}/auth/sesiones/otras`, {
+      const respuesta = await fetch(`${this._baseUrl}/sesiones/otras`, {
         method: 'DELETE',
         headers: this.headers(true)
       });
